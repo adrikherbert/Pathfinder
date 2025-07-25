@@ -1,10 +1,11 @@
 var canvasSize = 1000;
 var gridSize = 20;
 var squareMargin = 6;
-var ticksPerSecond = 60;
+var pathDrawSpeed = 20; // Speed of path drawing in milliseconds
+var algorithmSpeed = 10; // Speed of algorithm execution in milliseconds
 
-const tick = () => new Promise((resolve, reject) => {
-  setTimeout(_ => resolve(), 1000 / ticksPerSecond);
+const wait = (milliseconds) => new Promise((resolve, reject) => {
+  setTimeout(_ => resolve(), milliseconds);
 });
 
 class Grid {  
@@ -60,46 +61,54 @@ class GridSquare {
     this.j = j;
     this.id = id;
     this.size = size;
+    this.grid = grid;
+
     this.isSource = false;
     this.isTarget = false;
-    this.grid = grid;
-    this.visited = false;
-    this.current = false;
-    this.block = false;
-    this.found = false;
+    this.isVisited = false;
+    this.isCurrent = false;
+    this.isBlock = false;
+    this.isFound = false;
+    this.isPath = false;
   }
 
-  markFound() {
+  current() {
+    this.isCurrent = true;
+    setTimeout(() => {
+      this.isCurrent = false;
+    }, 400);
+  }
+
+  found() {
     if (this.isTarget) {
-      this.found = true;
+      this.isFound = true;
     }
   }
 
-  markVisited() {
-    this.visited = true;
+  mark() {
+    if (!this.isBlock && !this.isSource && !this.isTarget) {
+      this.isPath = true;
+    }
   }
 
-  markCurrent() {
-    this.current = true;
-    setTimeout(() => {
-      this.current = false;
-    }, 400);
+  visited() {
+    this.isVisited = true;
   }
 
   handleBlock() {
     if (mouseX > this.x && mouseX < this.x + this.size && mouseY > this.y && mouseY < this.y + this.size) {
-      this.block = true; // Toggle block state
+      this.isBlock = true; // Toggle block state
     }
   }
 
   handleClick() {
     if (mouseX > this.x && mouseX < this.x + this.size && mouseY > this.y && mouseY < this.y + this.size) {
-      if (!this.block) {
+      if (!this.isBlock) {
         if (!this.grid.hasSource) {
           this.grid.hasSource = true;
           this.grid.source = this;
           this.isSource = true;
-        } else if (!this.grid.hasTarget) {
+        } else if (!this.grid.hasTarget && !this.isSource) {
           this.grid.hasTarget = true;
           this.grid.target = this;
           this.isTarget = true;
@@ -109,17 +118,19 @@ class GridSquare {
   }
 
   display() {
-    if (this.found) {
+    if (this.isFound) {
       fill(255, 215, 0);
-    } else if (this.block) {
+    } else if (this.isPath) {
+      fill(255, 100, 255);
+    } else if (this.isBlock) {
       fill(100, 100, 100);
     } else if (this.isSource) {
       fill(0, 255, 100);
     } else if (this.isTarget) {
-      fill(255, 100, 0);
-    } else if (this.current) {
+      fill(255, 50, 0);
+    } else if (this.isCurrent) {
       fill(100, 0, 255);
-    } else if (this.visited) {
+    } else if (this.isVisited) {
       fill(30, 180, 255);
     } else {
       fill(255);
@@ -189,7 +200,7 @@ async function breadthFirstSearch() {
     const current = queue.shift();
 
     if (current.isTarget) {
-      current.markFound();
+      current.found();
       break;
     }
 
@@ -200,11 +211,21 @@ async function breadthFirstSearch() {
       }
     }
 
-    current.markVisited();
-    current.markCurrent();
+    current.visited();
+    current.current();
 
-    await tick(); // Wait for the next tick before continuing
+    await wait(algorithmSpeed); // Wait for the next tick before continuing
   }
+
+  let current = grid.target;
+
+  while (current) {
+    current.mark();
+    current = visited.get(current.id);
+
+    await wait(pathDrawSpeed); // Wait for the next tick before continuing
+  }
+
 }
 
 function getNeighbors(square) {
@@ -218,7 +239,7 @@ function getNeighbors(square) {
 
   for (let dir of directions) {
     const neighbor = grid.getSquareAt(square.i + dir.i, square.j + dir.j);
-    if (neighbor && !neighbor.visited && !neighbor.isSource && !neighbor.block) {
+    if (neighbor && !neighbor.isVisited && !neighbor.isSource && !neighbor.isBlock) {
       neighbors.push(neighbor);
     }
   }
