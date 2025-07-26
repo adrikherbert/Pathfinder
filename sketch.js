@@ -1,8 +1,8 @@
 var canvasSize = 1000;
-var gridSize = 30;
+var gridSize = 20;
 var squareMargin = 3;
-var pathDrawSpeed = 1; // Speed of path drawing in milliseconds
-var algorithmSpeed = 1; // Speed of algorithm execution in milliseconds
+var pathDrawSpeed = 3; // Speed of path drawing in milliseconds
+var algorithmSpeed = 20; // Speed of algorithm execution in milliseconds
 
 const wait = (milliseconds) => new Promise((resolve, reject) => {
   setTimeout(_ => resolve(), milliseconds);
@@ -51,6 +51,17 @@ class Grid {
       square.display();
     }
   }
+
+  clearAlgorithmMarks() {
+    for (let square of this.gridSquares) {
+      square.isVisited = false;
+      square.isCurrent = false;
+      square.isPath = false;
+      square.isCurrentPath = false;
+      square.isFound = false;
+      square.isHighlighted = false;
+    }
+  }
 }
 
 class GridSquare {
@@ -71,6 +82,7 @@ class GridSquare {
     this.isFound = false;
     this.isPath = false;
     this.isCurrentPath = false;
+    this.isHighlighted = false;
   }
 
   current() {
@@ -88,7 +100,12 @@ class GridSquare {
 
   mark() {
     if (!this.isBlock && !this.isSource && !this.isTarget) {
+      this.isHighlighted = true;
       this.isPath = true;
+
+      setTimeout(() => {
+        this.isHighlighted = false;
+      }, 200);
     }
   }
 
@@ -105,8 +122,6 @@ class GridSquare {
   visited() {
     this.isVisited = true;
   }
-
-
 
   handleBlock() {
     if (!this.isSource && !this.isTarget && mouseX > this.x && mouseX < this.x + this.size && mouseY > this.y && mouseY < this.y + this.size) {
@@ -131,7 +146,9 @@ class GridSquare {
   }
 
   display() {
-    if (this.isPath) {
+    if (this.isHighlighted) {
+      fill(255, 0, 255);
+    } else if (this.isPath) {
       fill(0, 255, 255);
     } else if (this.isCurrentPath) {
       fill(255, 255, 0);
@@ -156,7 +173,7 @@ class GridSquare {
       noStroke();
     }
 
-    rect(this.x, this.y, this.size, this.size, 4, 4, 4, 4);
+    rect(this.x, this.y, this.size, this.size, 1, 1, 1, 1);
   }
 }
 
@@ -214,6 +231,8 @@ function mouseClicked() {
 }
 
 async function AStarSearch() {
+  grid.clearAlgorithmMarks();
+
   let openSet = [];
   openSet.push([grid.source, 0]);
 
@@ -311,16 +330,28 @@ function markCurrentPath(cameFrom) {
 }
 
 async function breadthFirstSearch() {
+  grid.clearAlgorithmMarks();
+
   let queue = [];
   queue.push(grid.source);
   visited = new Map();
   visited.set(grid.source.id, null);
 
+  let current = null;
+  let previous = null;
+
   while (queue.length > 0) {
-    const current = queue.shift();
+    if (current) {
+      previous = current;
+    }
+
+    current = queue.shift();
+
+    purgeCurrentPath(constructPath(previous, visited));
 
     if (current.isTarget) {
       current.found();
+      markCurrentPath(constructPath(current, visited));
       break;
     }
 
@@ -331,13 +362,15 @@ async function breadthFirstSearch() {
       }
     }
 
+    markCurrentPath(constructPath(current, visited));
+
     current.visited();
     current.current();
 
     await wait(algorithmSpeed); // Wait for the next tick before continuing
   }
 
-  let current = grid.target;
+  current = grid.target;
 
   while (current) {
     current.mark();
